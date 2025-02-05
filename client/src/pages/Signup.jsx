@@ -2,9 +2,14 @@ import useAuthStore from "@/store/authStore";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
-const Login = () => {
-  const [formData, setFormData] = useState({ email: "", password: "" });
-  const login = useAuthStore((state) => state.login);
+const Signup = () => {
+  const [formData, setFormData] = useState({
+    username: "",
+    email: "",
+    password: "",
+  });
+
+  const signup = useAuthStore((state) => state.signup);
   const navigate = useNavigate();
 
   const handleChange = (e) => {
@@ -13,12 +18,18 @@ const Login = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const success = await login(formData);
+    const success = await signup(formData);
     if (success) navigate("/dashboard");
   };
 
   return (
     <form onSubmit={handleSubmit}>
+      <input
+        type="text"
+        name="username"
+        placeholder="Username"
+        onChange={handleChange}
+      />
       <input
         type="email"
         name="email"
@@ -31,13 +42,12 @@ const Login = () => {
         placeholder="Password"
         onChange={handleChange}
       />
-      <button type="submit">Login</button>
-
+      <button type="submit">Sign Up</button>
       <div>
-        <a href="/signup">Create New Account</a>
+        <a href="/login">Already Have Account</a>
       </div>
     </form>
   );
 };
 
-export default Login;
+export default Signup;

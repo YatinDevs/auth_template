@@ -15,7 +15,17 @@ const useAuthStore = create((set) => ({
       return false;
     }
   },
-
+  signup: async (formData) => {
+    try {
+      const res = await axiosInstance.post("/auth/signup", formData);
+      console.log(res);
+      set({ user: res.data.employee, isAuthenticated: true });
+      return true;
+    } catch (error) {
+      console.error("Login failed:", error);
+      return false;
+    }
+  },
   checkAuth: async () => {
     try {
       const res = await axiosInstance.get("/auth/me");

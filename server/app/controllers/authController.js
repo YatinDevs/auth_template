@@ -10,8 +10,9 @@ const {
 // User Signup flow
 exports.signup = async (req, res) => {
   try {
-    const { username, email, password } = req.body;
     console.log(req.body);
+    const { username, email, password } = req.body;
+
     const exisitingEmployee = await Employee.findOne({ where: { email } });
     if (exisitingEmployee) {
       return res.status(400).json({ error: "Email already exists" });

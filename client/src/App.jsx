@@ -11,10 +11,12 @@ import AuthRedirect from "./components/AuthRedirect/AuthRedirect";
 import useAuthStore from "./store/authStore";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
+import Signup from "./pages/Signup";
 
 function App() {
-  const { checkAuth } = useAuthStore();
-
+  const { checkAuth, user, isAuthenticated } = useAuthStore();
+  console.log(user);
+  console.log(isAuthenticated);
   useEffect(() => {
     checkAuth(); // Check authentication on mount
   }, []);
@@ -28,6 +30,14 @@ function App() {
           element={
             <AuthRedirect>
               <Login />
+            </AuthRedirect>
+          }
+        />
+        <Route
+          path="/signup"
+          element={
+            <AuthRedirect>
+              <Signup />
             </AuthRedirect>
           }
         />
