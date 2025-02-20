@@ -1,126 +1,110 @@
 const jwt = require("jsonwebtoken");
 const Token = require("../models/tokenModel");
-const Employee = require("../models/employeeModel");
+const User = require("../models/userModel");
 const bcrypt = require("bcrypt");
 const {
   generateAccessToken,
   generateRefreshToken,
 } = require("../utils/tokenUtils");
 
-// User Signup flow
 exports.signup = async (req, res) => {
   try {
     console.log(req.body);
-    const { username, email, password } = req.body;
+    const { username, email, password, role } = req.body;
 
-    const exisitingEmployee = await Employee.findOne({ where: { email } });
-    if (exisitingEmployee) {
+    const existingUser = await User.findOne({ where: { email } });
+    console.log("1");
+
+    if (existingUser) {
       return res.status(400).json({ error: "Email already exists" });
     }
+    console.log("existingUser");
 
     const hashedPassword = await bcrypt.hash(password, 10);
-
-    const employee = await Employee.create({
+    const user = await User.create({
       username,
       email,
       password: hashedPassword,
-      role: "employee",
+      role: role,
     });
-    console.log(req.body);
-    const accessToken = generateAccessToken(employee);
-    const refreshToken = generateRefreshToken(employee);
+    // console.log(user);
+    console.log("3");
+
+    const accessToken = generateAccessToken(user);
+    const refreshToken = generateRefreshToken(user);
+    // console.log(accessToken, refreshToken);
+    console.log("4");
 
     await Token.create({
-      employeeId: employee.id,
+      userId: user.id,
       token: refreshToken,
-      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
     });
-    console.log(refreshToken);
-    console.log(accessToken);
-    res.cookie("refreshToken", refreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-    });
+    console.log("5");
+    setAuthCookies(res, accessToken, refreshToken);
 
-    res.cookie("accessToken", accessToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
-      maxAge: 15 * 60 * 1000,
-    });
     res.status(201).json({
+      success: true,
       message: "User created and logged in successfully",
-      accessToken: accessToken,
-      refreshToken: refreshToken,
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 };
 
-// User Login flow
 exports.login = async (req, res) => {
   try {
-    console.log(req.body);
-
     const { email, password } = req.body;
+    const user = await User.findOne({ where: { email } });
 
-    const employee = await Employee.findOne({ where: { email } });
-    console.log(employee);
-    if (!employee) {
-      return res.status(404).json({ error: "Employee not found" });
+    if (!user || !(await bcrypt.compare(password, user.password))) {
+      return res.status(401).json({ error: "Invalid credentials" });
     }
 
-    console.log(password);
-    console.log(employee.password);
+    const accessToken = generateAccessToken(user);
+    const refreshToken = generateRefreshToken(user);
+    console.log(accessToken, refreshToken);
+    await Token.destroy({ where: { userId: user.id } }); // Invalidate old refresh tokens
+    await Token.create({
+      userId: user.id,
+      token: refreshToken,
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+    });
 
-    const isPasswordValid = await bcrypt.compare(
-      password,
-      employee?.dataValues?.password
-    );
-    console.log(isPasswordValid);
+    setAuthCookies(res, accessToken, refreshToken);
 
-    if (!isPasswordValid) {
+    res.json({ success: true, message: "Logged in successfully" });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+exports.refreshToken = async (req, res) => {
+  try {
+    const { refreshToken } = req.cookies;
+    if (!refreshToken)
+      return res.status(401).json({ error: "No refresh token provided" });
+
+    const tokenData = await Token.findOne({ where: { token: refreshToken } });
+    if (!tokenData || tokenData.expiresAt < new Date())
       return res
         .status(401)
-        .json({ success: false, error: "Invalid password." });
-    }
-    const accessToken = generateAccessToken(employee);
-    const refreshToken = generateRefreshToken(employee);
+        .json({ error: "Invalid or expired refresh token" });
 
-    console.log(accessToken, `access`);
-    console.log(refreshToken, `refresh`);
+    const user = await User.findByPk(tokenData.userId);
+    const newAccessToken = generateAccessToken(user);
+    const newRefreshToken = generateRefreshToken(user);
 
+    await Token.destroy({ where: { token: refreshToken } }); // Rotate refresh token
     await Token.create({
-      employeeId: employee.id,
-      token: refreshToken,
-      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
+      userId: user.id,
+      token: newRefreshToken,
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
     });
 
-    console.log(refreshToken);
-    console.log(accessToken);
-    res.cookie("refreshToken", refreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-    });
+    setAuthCookies(res, newAccessToken, newRefreshToken);
 
-    res.cookie("accessToken", accessToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
-      maxAge: 15 * 60 * 1000,
-    });
-
-    const { password: _, ...empwithoutPass } = employee.toJSON();
-    res.status(201).json({
-      message: "User created and logged in successfully",
-      accessToken: accessToken,
-      refreshToken: refreshToken,
-    });
+    res.json({ message: "Token refreshed successfully" });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -129,98 +113,51 @@ exports.login = async (req, res) => {
 exports.logout = async (req, res) => {
   try {
     const { refreshToken } = req.cookies;
-
-    if (!refreshToken) {
+    if (!refreshToken)
       return res.status(400).json({ error: "No refresh token provided" });
-    }
-
-    const tokenData = await Token.findOne({ where: { token: refreshToken } });
-    if (!tokenData) {
-      return res.status(400).json({ error: "Invalid refresh token" });
-    }
 
     await Token.destroy({ where: { token: refreshToken } });
-    res.clearCookie("refreshToken", {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
-    });
-    res.clearCookie("accessToken", {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
-    });
+
+    res.clearCookie("refreshToken");
+    res.clearCookie("accessToken");
     res.json({ message: "Logged out successfully" });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 };
-
-exports.refreshTokenAction = async (req, res) => {
+exports.getEmp = async (req, res) => {
   try {
-    const { refreshToken } = req.cookies;
+    // console.log(req);
+    const { accessToken } = req.cookies;
+    if (!accessToken)
+      return res.status(401).json({ error: "No token provided" });
 
-    if (!refreshToken) {
-      return res.status(401).json({ error: "No refresh token provided" });
-    }
-
-    const tokenData = await Token.findOne({ where: { token: refreshToken } });
-    if (!tokenData || tokenData.expiresAt < new Date()) {
-      return res
-        .status(401)
-        .json({ error: "Invalid or expired refresh token" });
-    }
-
-    const employee = await Employee.findByPk(tokenData.employeeId);
-    const newAccessToken = generateAccessToken(user);
-    const newRefreshToken = generateRefreshToken(user);
-
-    await Token.destroy({ where: { token: refreshToken } });
-    await Token.create({
-      employeeId: employee.id,
-      token: newRefreshToken,
-      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
+    const decoded = jwt.verify(accessToken, process.env.ACCESS_TOKEN_SECRET);
+    const user = await User.findByPk(decoded.id, {
+      attributes: ["id", "username", "email", "role"],
     });
 
-    res.cookie("refreshToken", newRefreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
-    });
+    if (!user) return res.status(404).json({ error: "User not found" });
 
-    res.json({
-      message: "Token refreshed successfully",
-      accessToken: newAccessToken,
-      refreshToken: newRefreshToken,
-    });
+    res.json({ user });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.status(401).json({ error: "Unauthorized" });
   }
 };
 
-exports.getEmp = async (req, res) => {
-  try {
-    console.log(req.cookies);
-    const token = req.cookies.accessToken;
-    console.log(token);
+// Helper function to set cookies
+const setAuthCookies = (res, accessToken, refreshToken) => {
+  res.cookie("accessToken", accessToken, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "strict",
+    maxAge: 15 * 60 * 1000, // 15 minutes
+  });
 
-    if (!token) {
-      return res.status(401).json({ message: "Unauthorized" });
-    }
-
-    const decoded = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
-    console.log(decoded);
-
-    const employee = await Employee.findByPk(decoded.id);
-
-    const { password: _, ...empwithoutPass } = employee.toJSON();
-
-    if (!employee) {
-      return res.status(401).json({ message: "Unauthorized" });
-    }
-
-    res.json({ employee: empwithoutPass });
-  } catch (error) {
-    res.status(401).json({ message: "Invalid or expired token" });
-  }
+  res.cookie("refreshToken", refreshToken, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "strict",
+    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+  });
 };

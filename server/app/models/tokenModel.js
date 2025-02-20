@@ -7,7 +7,7 @@ const Token = sequelize.define("Token", {
     primaryKey: true,
     autoIncrement: true,
   },
-  employeeId: {
+  userId: {
     type: DataTypes.INTEGER,
     allowNull: false,
   },

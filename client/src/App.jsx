@@ -1,32 +1,33 @@
+import React, { useEffect } from "react";
 import {
-  BrowserRouter as Router,
-  Routes,
+  createBrowserRouter,
+  createRoutesFromElements,
   Route,
-  Navigate,
+  RouterProvider,
 } from "react-router-dom";
-
-import { useEffect } from "react";
+import Layout from "./layout/Layout";
 import ProtectedRoute from "./components/ProtectedRoute/ProtectedRoute";
 import AuthRedirect from "./components/AuthRedirect/AuthRedirect";
 import useAuthStore from "./store/authStore";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import Signup from "./pages/Signup";
+import PageNotFound from "./pages/404/PageNotFound";
+import Form1Application from "./pages/Forms/Form1Application";
 
 function App() {
-  const { checkAuth, user, isAuthenticated } = useAuthStore();
-  console.log(user);
-  console.log(isAuthenticated);
+  const { checkAuth } = useAuthStore();
+
   useEffect(() => {
     checkAuth(); // Check authentication on mount
   }, []);
 
-  return (
-    <Router>
-      <Routes>
-        {/* Public Route with Auth Redirect */}
+  const router = createBrowserRouter(
+    createRoutesFromElements(
+      <Route path="/" element={<Layout />}>
+        {/* Public Routes */}
         <Route
-          path="/login"
+          index
           element={
             <AuthRedirect>
               <Login />
@@ -43,15 +44,30 @@ function App() {
         />
 
         {/* Protected Routes */}
-        <Route element={<ProtectedRoute />}>
-          <Route path="/dashboard" element={<Dashboard />} />
-        </Route>
+        <Route
+          path="/dashboard"
+          element={
+            <ProtectedRoute>
+              <Dashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dashboard/peer/form1"
+          element={
+            <ProtectedRoute>
+              <Form1Application />
+            </ProtectedRoute>
+          }
+        />
 
-        {/* Catch-all Route */}
-        <Route path="*" element={<Navigate to="/dashboard" replace />} />
-      </Routes>
-    </Router>
+        {/* 404 Page */}
+        <Route path="*" element={<PageNotFound />} />
+      </Route>
+    )
   );
+
+  return <RouterProvider router={router} />;
 }
 
 export default App;

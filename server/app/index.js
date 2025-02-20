@@ -11,9 +11,9 @@ const sequelize = require("./utils/db");
 
 // Models setup
 
-const Employee = require("./models/employeeModel");
+const User = require("./models/userModel");
 const Token = require("./models/tokenModel");
-const models = { Employee, Token };
+const models = { User, Token };
 
 Object.keys(models).forEach((modelName) => {
   if (models[modelName].associate) {

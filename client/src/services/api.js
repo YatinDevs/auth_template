@@ -1,10 +1,18 @@
 import axios from "axios";
+import Cookies from "js-cookie"; // For reading cookies
+import useAuthStore from "../store/authStore";
+// const API_BASE_URL = "http://192.168.0.241:8098/";
+const API_BASE_URL = "http://localhost:8077/api/v1";
 
-const API_BASE_URL = "http://localhost:8088/api/v1";
+// const API_BASE_URL = ":8088/";
 
 const axiosInstance = axios.create({
   baseURL: API_BASE_URL,
-  withCredentials: true, // Ensure cookies are sent
+  headers: {
+    "Content-Type": "application/json",
+  },
+  timeout: 10000,
+  withCredentials: true,
 });
 
 // Request Interceptor (Optional)
